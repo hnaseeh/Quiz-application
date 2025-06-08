@@ -1,0 +1,443 @@
+import React, { useState, useEffect } from 'react';
+import { CheckCircle, XCircle, Clock, Trophy, RotateCcw, Upload, X } from 'lucide-react';
+
+const QuizApp = () => {
+  const [currentQuestion, setCurrentQuestion] = useState(0);
+  const [selectedAnswer, setSelectedAnswer] = useState(null);
+  const [score, setScore] = useState(0);
+  const [showResult, setShowResult] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(30);
+  const [quizComplete, setQuizComplete] = useState(false);
+  const [userAnswers, setUserAnswers] = useState([]);
+  const [questions, setQuestions] = useState([]);
+  const [quizStarted, setQuizStarted] = useState(false);
+  const [uploadedImages, setUploadedImages] = useState([]);
+
+  // Timer effect
+  useEffect(() => {
+    if (timeLeft > 0 && !showResult && !quizComplete && quizStarted) {
+      const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
+      return () => clearTimeout(timer);
+    } else if (timeLeft === 0 && !showResult && quizStarted) {
+      handleTimeUp();
+    }
+  }, [timeLeft, showResult, quizComplete, quizStarted]);
+
+  const handleImageUpload = (event) => {
+    const files = Array.from(event.target.files);
+    
+    files.forEach((file, index) => {
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const newQuestion = {
+            id: Date.now() + index,
+            imageUrl: e.target.result,
+            imageName: file.name,
+            optionA: '',
+            optionB: '',
+            optionC: '',
+            optionD: '',
+            correct: 0 // Default to A
+          };
+          setUploadedImages(prev => [...prev, newQuestion]);
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+  };
+
+  const updateQuestionOption = (questionId, field, value) => {
+    setUploadedImages(prev => 
+      prev.map(q => 
+        q.id === questionId ? { ...q, [field]: value } : q
+      )
+    );
+  };
+
+  const removeQuestion = (questionId) => {
+    setUploadedImages(prev => prev.filter(q => q.id !== questionId));
+  };
+
+  const startQuiz = () => {
+    if (uploadedImages.length === 0) {
+      alert('Please upload at least one question image.');
+      return;
+    }
+    
+    // Check if all questions have options filled
+    const incompleteQuestions = uploadedImages.filter(q => 
+      !q.optionA.trim() || !q.optionB.trim() || !q.optionC.trim() || !q.optionD.trim()
+    );
+    
+    if (incompleteQuestions.length > 0) {
+      alert('Please fill in all options (A, B, C, D) for each question.');
+      return;
+    }
+    
+    setQuestions(uploadedImages);
+    setQuizStarted(true);
+    setTimeLeft(30);
+  };
+
+  const handleTimeUp = () => {
+    setUserAnswers([...userAnswers, { questionIndex: currentQuestion, answer: null, correct: false }]);
+    setShowResult(true);
+    setTimeout(() => {
+      nextQuestion();
+    }, 2000);
+  };
+
+  const handleAnswerClick = (answerIndex) => {
+    if (showResult) return;
+    
+    setSelectedAnswer(answerIndex);
+    const isCorrect = answerIndex === questions[currentQuestion].correct;
+    
+    setUserAnswers([...userAnswers, { 
+      questionIndex: currentQuestion, 
+      answer: answerIndex, 
+      correct: isCorrect 
+    }]);
+    
+    if (isCorrect) {
+      setScore(score + 1);
+    }
+    
+    setShowResult(true);
+    
+    setTimeout(() => {
+      nextQuestion();
+    }, 2000);
+  };
+
+  const nextQuestion = () => {
+    if (currentQuestion + 1 < questions.length) {
+      setCurrentQuestion(currentQuestion + 1);
+      setSelectedAnswer(null);
+      setShowResult(false);
+      setTimeLeft(30);
+    } else {
+      setQuizComplete(true);
+    }
+  };
+
+  const resetQuiz = () => {
+    setCurrentQuestion(0);
+    setSelectedAnswer(null);
+    setScore(0);
+    setShowResult(false);
+    setTimeLeft(30);
+    setQuizComplete(false);
+    setUserAnswers([]);
+    setQuestions([]);
+    setQuizStarted(false);
+  };
+
+  const getScoreColor = () => {
+    const percentage = (score / questions.length) * 100;
+    if (percentage >= 80) return 'text-green-600';
+    if (percentage >= 60) return 'text-yellow-600';
+    return 'text-red-600';
+  };
+
+  const getScoreMessage = () => {
+    const percentage = (score / questions.length) * 100;
+    if (percentage >= 80) return 'Excellent work! 🎉';
+    if (percentage >= 60) return 'Good job! 👍';
+    return 'Keep practicing! 💪';
+  };
+
+  const getOptionLabel = (index) => {
+    return ['A', 'B', 'C', 'D'][index];
+  };
+
+  const getCurrentOptions = () => {
+    const q = questions[currentQuestion];
+    return [q.optionA, q.optionB, q.optionC, q.optionD];
+  };
+
+  // Quiz Setup Screen
+  if (!quizStarted) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-400 via-purple-500 to-pink-500 p-4">
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-white rounded-2xl shadow-2xl p-8">
+            <h1 className="text-3xl font-bold text-gray-800 mb-6 text-center">
+              Create Your Image Quiz
+            </h1>
+            
+            {/* Upload Section */}
+            <div className="mb-8">
+              <label className="block text-lg font-semibold text-gray-700 mb-4">
+                Upload Question Images
+              </label>
+              <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:border-blue-400 transition-colors">
+                <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-600 mb-4">
+                  Click to upload question images or drag and drop
+                </p>
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="hidden"
+                  id="image-upload"
+                />
+                <label
+                  htmlFor="image-upload"
+                  className="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 cursor-pointer inline-block transition-colors"
+                >
+                  Choose Images
+                </label>
+              </div>
+            </div>
+
+            {/* Questions List */}
+            {uploadedImages.length > 0 && (
+              <div className="space-y-6">
+                <h2 className="text-xl font-semibold text-gray-800">
+                  Configure Your Questions ({uploadedImages.length})
+                </h2>
+                
+                {uploadedImages.map((question, index) => (
+                  <div key={question.id} className="bg-gray-50 rounded-xl p-6">
+                    <div className="flex justify-between items-start mb-4">
+                      <h3 className="text-lg font-medium text-gray-800">
+                        Question {index + 1}
+                      </h3>
+                      <button
+                        onClick={() => removeQuestion(question.id)}
+                        className="text-red-500 hover:text-red-700 p-1"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+                    
+                    <div className="grid md:grid-cols-2 gap-6">
+                      {/* Image Preview */}
+                      <div>
+                        <img
+                          src={question.imageUrl}
+                          alt={`Question ${index + 1}`}
+                          className="w-full h-48 object-contain bg-white rounded-lg border shadow-sm"
+                        />
+                        <p className="text-sm text-gray-500 mt-2 truncate">
+                          {question.imageName}
+                        </p>
+                      </div>
+                      
+                      {/* Options */}
+                      <div className="space-y-3">
+                        {['A', 'B', 'C', 'D'].map((letter, optionIndex) => (
+                          <div key={letter} className="flex items-center gap-3">
+                            <label className="w-8 h-8 bg-blue-100 text-blue-800 rounded-full flex items-center justify-center font-semibold">
+                              {letter}
+                            </label>
+                            <input
+                              type="text"
+                              placeholder={`Option ${letter}`}
+                              value={question[`option${letter}`]}
+                              onChange={(e) => updateQuestionOption(question.id, `option${letter}`, e.target.value)}
+                              className="flex-1 p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          </div>
+                        ))}
+                        
+                        {/* Correct Answer Selection */}
+                        <div className="mt-4">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Correct Answer:
+                          </label>
+                          <select
+                            value={question.correct}
+                            onChange={(e) => updateQuestionOption(question.id, 'correct', parseInt(e.target.value))}
+                            className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          >
+                            <option value={0}>A</option>
+                            <option value={1}>B</option>
+                            <option value={2}>C</option>
+                            <option value={3}>D</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                
+                {/* Start Quiz Button */}
+                <div className="text-center pt-6">
+                  <button
+                    onClick={startQuiz}
+                    className="bg-gradient-to-r from-green-500 to-blue-500 text-white px-8 py-3 rounded-xl font-semibold hover:from-green-600 hover:to-blue-600 transition-all duration-300 transform hover:scale-105"
+                  >
+                    Start Quiz ({uploadedImages.length} Questions)
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Quiz Complete Screen
+  if (quizComplete) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-400 via-pink-500 to-red-500 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-2xl w-full text-center">
+          <div className="mb-6">
+            <Trophy className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
+            <h1 className="text-3xl font-bold text-gray-800 mb-2">Quiz Complete!</h1>
+            <p className="text-xl text-gray-600">{getScoreMessage()}</p>
+          </div>
+          
+          <div className="bg-gray-50 rounded-xl p-6 mb-6">
+            <div className={`text-4xl font-bold ${getScoreColor()} mb-2`}>
+              {score} / {questions.length}
+            </div>
+            <div className="text-lg text-gray-600">
+              {Math.round((score / questions.length) * 100)}% Correct
+            </div>
+          </div>
+
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Review Your Answers:</h3>
+            <div className="space-y-2">
+              {questions.map((q, index) => {
+                const userAnswer = userAnswers[index];
+                return (
+                  <div key={index} className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
+                    <span className="text-sm text-gray-700">Question {index + 1}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500">
+                        {userAnswer?.answer !== null ? getOptionLabel(userAnswer.answer) : 'No answer'} 
+                        {userAnswer?.answer !== null && ` → ${getOptionLabel(q.correct)}`}
+                      </span>
+                      {userAnswer?.correct ? (
+                        <CheckCircle className="w-5 h-5 text-green-500" />
+                      ) : (
+                        <XCircle className="w-5 h-5 text-red-500" />
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <button
+            onClick={resetQuiz}
+            className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-8 py-3 rounded-xl font-semibold hover:from-purple-600 hover:to-pink-600 transition-all duration-300 transform hover:scale-105 flex items-center gap-2 mx-auto"
+          >
+            <RotateCcw className="w-5 h-5" />
+            Create New Quiz
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Quiz Playing Screen
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-400 via-purple-500 to-pink-500 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-4xl w-full">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-6">
+          <div className="text-sm text-gray-500">
+            Question {currentQuestion + 1} of {questions.length}
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="text-sm text-gray-500">
+              Score: {score}/{questions.length}
+            </div>
+            <div className={`flex items-center gap-2 px-3 py-1 rounded-full ${
+              timeLeft <= 10 ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'
+            }`}>
+              <Clock className="w-4 h-4" />
+              <span className="font-semibold">{timeLeft}s</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Progress Bar */}
+        <div className="w-full bg-gray-200 rounded-full h-2 mb-8">
+          <div 
+            className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-300"
+            style={{ width: `${((currentQuestion) / questions.length) * 100}%` }}
+          ></div>
+        </div>
+
+        {/* Question Image */}
+        <div className="mb-8">
+          <div className="bg-gray-50 rounded-xl p-6 mb-6">
+            <img
+              src={questions[currentQuestion].imageUrl}
+              alt={`Question ${currentQuestion + 1}`}
+              className="w-full h-64 md:h-80 object-contain mx-auto bg-white rounded-lg shadow-sm"
+            />
+          </div>
+
+          {/* Answer Options */}
+          <div className="grid md:grid-cols-2 gap-3">
+            {getCurrentOptions().map((option, index) => {
+              let buttonClass = "w-full p-4 text-left rounded-xl border-2 transition-all duration-300 transform hover:scale-102";
+              
+              if (showResult) {
+                if (index === questions[currentQuestion].correct) {
+                  buttonClass += " bg-green-100 border-green-500 text-green-800";
+                } else if (index === selectedAnswer && index !== questions[currentQuestion].correct) {
+                  buttonClass += " bg-red-100 border-red-500 text-red-800";
+                } else {
+                  buttonClass += " bg-gray-100 border-gray-300 text-gray-500";
+                }
+              } else {
+                buttonClass += " bg-gray-50 border-gray-200 hover:border-blue-400 hover:bg-blue-50 text-gray-800";
+              }
+
+              return (
+                <button
+                  key={index}
+                  onClick={() => handleAnswerClick(index)}
+                  className={buttonClass}
+                  disabled={showResult}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="w-8 h-8 bg-blue-100 text-blue-800 rounded-full flex items-center justify-center font-semibold text-sm">
+                        {getOptionLabel(index)}
+                      </span>
+                      <span className="font-medium">{option}</span>
+                    </div>
+                    {showResult && index === questions[currentQuestion].correct && (
+                      <CheckCircle className="w-6 h-6 text-green-500" />
+                    )}
+                    {showResult && index === selectedAnswer && index !== questions[currentQuestion].correct && (
+                      <XCircle className="w-6 h-6 text-red-500" />
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Result Message */}
+        {showResult && (
+          <div className="text-center">
+            <div className={`text-lg font-semibold ${
+              selectedAnswer === questions[currentQuestion].correct ? 'text-green-600' : 'text-red-600'
+            }`}>
+              {selectedAnswer === questions[currentQuestion].correct ? '✅ Correct!' : 
+               selectedAnswer === null ? '⏰ Time\'s up!' : '❌ Incorrect!'}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default QuizApp;
